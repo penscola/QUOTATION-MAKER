@@ -1,0 +1,6 @@
+{
+  "name": "QuoteCraft",
+  "description": "Simple instant quotation maker in Kenyan Shillings (KSh) with custom logo upload and ready-to-print document generation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
