@@ -168,6 +168,30 @@ function parseWithSmartRules(text: string, current: QuotationData): QuotationDat
     }
   }
 
+  // Detect discount
+  let detectedDiscountType = current.pricing.discountType || 'percentage';
+  let detectedDiscountValue = current.pricing.discountValue || 0;
+  const discountMatch = text.match(/discount(?:\s+of)?\s*[:=]?\s*(\d+(?:\.\d+)?)\s*(%|ksh|\$|eur)?/i);
+  if (discountMatch) {
+    const val = parseFloat(discountMatch[1]);
+    const unit = discountMatch[2];
+    if (unit === '%' || !unit) {
+      detectedDiscountType = 'percentage';
+      detectedDiscountValue = val;
+    } else {
+      detectedDiscountType = 'fixed';
+      detectedDiscountValue = val;
+    }
+  }
+
+  // Detect VAT / Tax toggle
+  let detectedTaxEnabled = current.pricing.taxEnabled !== false;
+  if (text.match(/no\s+vat|without\s+vat|vat\s+exempt|zero\s*rated|0%\s*vat|tax\s*free|exempt/i)) {
+    detectedTaxEnabled = false;
+  } else if (text.match(/16%\s*vat|with\s*vat|inclusive\s*of\s*vat|add\s*vat|plus\s*vat/i)) {
+    detectedTaxEnabled = true;
+  }
+
   return {
     ...current,
     client: {
@@ -178,6 +202,10 @@ function parseWithSmartRules(text: string, current: QuotationData): QuotationDat
     pricing: {
       ...current.pricing,
       currencySymbol: detectedCurrency,
+      discountType: detectedDiscountType,
+      discountValue: detectedDiscountValue,
+      taxEnabled: detectedTaxEnabled,
+      taxRatePercent: 16,
     },
     items: updatedItems.length > 0 ? updatedItems : current.items,
   };

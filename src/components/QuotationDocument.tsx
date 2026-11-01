@@ -1,5 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { QuotationData, QuoteItem } from '../types/quote';
+import { calculateQuotationTotals } from '../utils/pricing';
 import { Trash2, Plus, PenTool, Check, RotateCcw, Upload, X, Image as ImageIcon } from 'lucide-react';
 
 interface AutoResizeTextareaProps {
@@ -78,11 +79,8 @@ export const QuotationDocument: React.FC<QuotationDocumentProps> = ({
   const logoInputRef = useRef<HTMLInputElement | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
 
-  // Subtotal calculations
-  const subtotal = data.items.reduce((sum, item) => sum + (item.quantity * item.price), 0);
-  const tax = data.pricing.taxAmount || (subtotal * (data.pricing.taxRatePercent / 100));
-  const others = data.pricing.othersFee || 0;
-  const grandTotal = subtotal + tax + others;
+  // Unified pricing totals calculation (including discount & 16% VAT toggle)
+  const totals = calculateQuotationTotals(data.items, data.pricing);
 
   const currency = data.pricing.currencySymbol || 'KSh';
   const currDisplay = currency.length > 1 ? `${currency} ` : currency;
@@ -529,50 +527,142 @@ export const QuotationDocument: React.FC<QuotationDocumentProps> = ({
             {/* Subtotal */}
             <div className="flex justify-between items-center py-0.5 text-slate-800">
               <span className="font-bold">Subtotal</span>
-              <span className="font-mono font-medium">{currDisplay}{formatNum(subtotal)}</span>
+              <span className="font-mono font-medium">{currDisplay}{formatNum(totals.subtotal)}</span>
             </div>
 
-            {/* Value-Added Tax */}
-            <div className="flex justify-between items-center py-0.5 text-slate-800">
-              <span className="font-bold">Value-Added Tax</span>
-              <div className="flex items-center justify-end font-mono">
-                <span className="text-slate-600 mr-0.5">{currDisplay}</span>
-                <input
-                  type="number"
-                  min="0"
-                  value={data.pricing.taxAmount}
-                  onChange={(e) => onChange({
-                    ...data,
-                    pricing: {
-                      ...data.pricing,
-                      taxAmount: parseFloat(e.target.value) || 0,
-                    },
-                  })}
-                  className="w-16 text-right bg-transparent hover:bg-slate-100 focus:bg-white focus:outline-none rounded px-1 font-mono font-medium"
-                />
+            {/* Discount (if applied) */}
+            {totals.discountAmount > 0 && (
+              <div className="flex justify-between items-center py-0.5 text-emerald-700">
+                <span className="font-bold flex items-center gap-1">
+                  <span>Discount</span>
+                  <span className="text-[10px] font-semibold bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded">
+                    {totals.discountLabel}
+                  </span>
+                </span>
+                <span className="font-mono font-medium">-{currDisplay}{formatNum(totals.discountAmount)}</span>
               </div>
-            </div>
+            )}
 
-            {/* Others */}
-            <div className="flex justify-between items-center py-0.5 text-slate-800">
-              <span className="font-bold">Others</span>
-              <div className="flex items-center justify-end font-mono">
-                <span className="text-slate-600 mr-0.5">{currDisplay}</span>
-                <input
-                  type="number"
-                  min="0"
-                  value={data.pricing.othersFee}
-                  onChange={(e) => onChange({
-                    ...data,
-                    pricing: {
-                      ...data.pricing,
-                      othersFee: parseFloat(e.target.value) || 0,
-                    },
-                  })}
-                  className="w-16 text-right bg-transparent hover:bg-slate-100 focus:bg-white focus:outline-none rounded px-1 font-mono font-medium"
-                />
+            {/* Value-Added Tax (With 1-click removal & restore) */}
+            {totals.isTaxEnabled ? (
+              <div className="group flex justify-between items-center py-0.5 text-slate-800">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-bold">Value-Added Tax</span>
+                  <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-sky-100 text-sky-800">
+                    16%
+                  </span>
+                  {interactive && (
+                    <button
+                      type="button"
+                      onClick={() => onChange({
+                        ...data,
+                        pricing: { ...data.pricing, taxEnabled: false }
+                      })}
+                      title="Remove 16% VAT from this quote"
+                      className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-rose-600 p-0.5 text-[10px] print:hidden flex items-center gap-0.5 rounded px-1 ml-0.5 bg-slate-50 hover:bg-rose-50 border border-slate-200 hover:border-rose-300 cursor-pointer"
+                    >
+                      <Trash2 className="w-2.5 h-2.5 text-rose-500" />
+                      <span className="text-rose-600 font-semibold text-[9px]">Remove</span>
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center justify-end font-mono font-medium">
+                  <span className="text-slate-600 mr-0.5">{currDisplay}</span>
+                  <span>{formatNum(totals.taxAmount)}</span>
+                </div>
               </div>
-            </div>
+            ) : (
+              /* When VAT is removed: In interactive mode, show removed indicator with quick restore button. In print/PDF: omitted cleanly */
+              interactive ? (
+                <div className="group flex justify-between items-center py-0.5 text-slate-500 print:hidden">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-slate-400 font-medium line-through">Value-Added Tax</span>
+                    <span className="text-[10px] font-medium px-1.5 py-0.2 rounded bg-slate-100 text-slate-500">
+                      0% (Removed)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => onChange({
+                        ...data,
+                        pricing: { ...data.pricing, taxEnabled: true }
+                      })}
+                      title="Add 16% VAT back"
+                      className="text-emerald-600 hover:text-emerald-700 p-0.5 text-[10px] flex items-center gap-0.5 rounded px-1.5 ml-0.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 cursor-pointer font-semibold"
+                    >
+                      <Plus className="w-2.5 h-2.5 text-emerald-600" />
+                      <span className="text-[9px]">Add 16% VAT</span>
+                    </button>
+                  </div>
+                  <span className="font-mono text-slate-400 text-xs">{currDisplay}0</span>
+                </div>
+              ) : null
+            )}
+
+            {/* Others (shown if enabled & > 0; can be removed directly) */}
+            {totals.isOthersEnabled && totals.othersFee > 0 ? (
+              <div className="group flex justify-between items-center py-0.5 text-slate-800">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-bold">{data.pricing.othersLabel || 'Others'}</span>
+                  {interactive && (
+                    <button
+                      type="button"
+                      onClick={() => onChange({
+                        ...data,
+                        pricing: { ...data.pricing, othersEnabled: false, othersFee: 0 }
+                      })}
+                      title="Remove other charges"
+                      className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-rose-600 p-0.5 text-[10px] print:hidden flex items-center gap-0.5 rounded px-1 ml-0.5 bg-slate-50 hover:bg-rose-50 border border-slate-200 hover:border-rose-300 cursor-pointer"
+                    >
+                      <Trash2 className="w-2.5 h-2.5 text-rose-500" />
+                      <span className="text-rose-600 font-semibold text-[9px]">Remove</span>
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center justify-end font-mono">
+                  <span className="text-slate-600 mr-0.5">{currDisplay}</span>
+                  {interactive ? (
+                    <input
+                      type="number"
+                      min="0"
+                      value={data.pricing.othersFee}
+                      onChange={(e) => onChange({
+                        ...data,
+                        pricing: {
+                          ...data.pricing,
+                          othersFee: parseFloat(e.target.value) || 0,
+                          othersEnabled: true,
+                        },
+                      })}
+                      className="w-16 text-right bg-transparent hover:bg-slate-100 focus:bg-white focus:outline-none rounded px-1 font-mono font-medium"
+                    />
+                  ) : (
+                    <span className="font-medium">{formatNum(totals.othersFee)}</span>
+                  )}
+                </div>
+              </div>
+            ) : (
+              /* When Others is removed/none: In interactive mode, show subtle '+ Add Other Charges' button. In print/PDF: completely omitted */
+              interactive ? (
+                <div className="pt-0.5 print:hidden flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => onChange({
+                      ...data,
+                      pricing: {
+                        ...data.pricing,
+                        othersEnabled: true,
+                        othersFee: 2500,
+                        othersLabel: data.pricing.othersLabel || 'Others',
+                      }
+                    })}
+                    className="text-[10px] text-slate-400 hover:text-sky-600 flex items-center gap-1 transition-colors cursor-pointer py-0.5"
+                  >
+                    <Plus className="w-2.5 h-2.5" />
+                    <span>+ Add Other / Delivery Charges</span>
+                  </button>
+                </div>
+              ) : null
+            )}
 
             {/* Solid Accent Color Total Bar matching image */}
             <div 
@@ -580,7 +670,7 @@ export const QuotationDocument: React.FC<QuotationDocumentProps> = ({
               style={{ backgroundColor: theme }}
             >
               <span>Total</span>
-              <span>{currDisplay}{formatNum(grandTotal)}</span>
+              <span>{currDisplay}{formatNum(totals.grandTotal)}</span>
             </div>
           </div>
         </div>

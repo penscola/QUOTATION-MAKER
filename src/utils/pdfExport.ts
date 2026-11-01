@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf';
 import { QuotationData } from '../types/quote';
+import { calculateQuotationTotals } from './pricing';
 
 interface PDFExportOptions {
   filename?: string;
@@ -316,11 +317,9 @@ export async function downloadQuotationPDF(
   curY += 4;
 
   // 7. Totals Summary Box (Right Aligned)
+  const totals = calculateQuotationTotals(quotation.items, quotation.pricing);
   const totalsWidth = 68;
   const totalsX = margin + contentWidth - totalsWidth;
-  const tax = quotation.pricing.taxAmount || (subtotal * (quotation.pricing.taxRatePercent / 100));
-  const others = quotation.pricing.othersFee || 0;
-  const grandTotal = subtotal + tax + others;
 
   // Subtotal
   pdf.setFont('helvetica', 'bold');
@@ -328,22 +327,38 @@ export async function downloadQuotationPDF(
   pdf.setTextColor(50, 50, 50);
   pdf.text('Subtotal', totalsX, curY + 3);
   pdf.setFont('helvetica', 'normal');
-  pdf.text(`${currDisplay}${formatNum(subtotal)}`, margin + contentWidth - 4, curY + 3, { align: 'right' });
+  pdf.text(`${currDisplay}${formatNum(totals.subtotal)}`, margin + contentWidth - 4, curY + 3, { align: 'right' });
   curY += 5;
 
-  // VAT
-  pdf.setFont('helvetica', 'bold');
-  pdf.text('Value-Added Tax', totalsX, curY + 3);
-  pdf.setFont('helvetica', 'normal');
-  pdf.text(`${currDisplay}${formatNum(tax)}`, margin + contentWidth - 4, curY + 3, { align: 'right' });
-  curY += 5;
-
-  // Others (if any)
-  if (others > 0 || quotation.pricing.othersFee !== undefined) {
+  // Discount (if applied)
+  if (totals.discountAmount > 0) {
     pdf.setFont('helvetica', 'bold');
-    pdf.text('Others', totalsX, curY + 3);
+    pdf.setTextColor(16, 120, 60);
+    pdf.text(`Discount (${totals.discountLabel})`, totalsX, curY + 3);
     pdf.setFont('helvetica', 'normal');
-    pdf.text(`${currDisplay}${formatNum(others)}`, margin + contentWidth - 4, curY + 3, { align: 'right' });
+    pdf.text(`-${currDisplay}${formatNum(totals.discountAmount)}`, margin + contentWidth - 4, curY + 3, { align: 'right' });
+    curY += 5;
+  }
+
+  // VAT (16% - rendered when enabled)
+  if (totals.isTaxEnabled) {
+    pdf.setFont('helvetica', 'bold');
+    pdf.setTextColor(50, 50, 50);
+    const vatLabel = 'Value-Added Tax (16%)';
+    pdf.text(vatLabel, totalsX, curY + 3);
+    pdf.setFont('helvetica', 'normal');
+    pdf.text(`${currDisplay}${formatNum(totals.taxAmount)}`, margin + contentWidth - 4, curY + 3, { align: 'right' });
+    curY += 5;
+  }
+
+  // Others (rendered when enabled and fee > 0)
+  if (totals.isOthersEnabled && totals.othersFee > 0) {
+    pdf.setFont('helvetica', 'bold');
+    pdf.setTextColor(50, 50, 50);
+    const othersLabel = totals.othersLabel || 'Others';
+    pdf.text(othersLabel, totalsX, curY + 3);
+    pdf.setFont('helvetica', 'normal');
+    pdf.text(`${currDisplay}${formatNum(totals.othersFee)}`, margin + contentWidth - 4, curY + 3, { align: 'right' });
     curY += 5;
   }
 
@@ -357,7 +372,7 @@ export async function downloadQuotationPDF(
   pdf.setFontSize(9);
   pdf.setTextColor(255, 255, 255);
   pdf.text('Total', totalsX, curY + 5.2);
-  pdf.text(`${currDisplay}${formatNum(grandTotal)}`, margin + contentWidth - 4, curY + 5.2, { align: 'right' });
+  pdf.text(`${currDisplay}${formatNum(totals.grandTotal)}`, margin + contentWidth - 4, curY + 5.2, { align: 'right' });
 
   curY += totalBarHeight + 6;
 

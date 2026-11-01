@@ -5,6 +5,18 @@ export interface QuoteItem {
   price: number;
 }
 
+export interface QuotationPricing {
+  currencySymbol: string;
+  taxRatePercent: number; // e.g. 16 for standard 16% VAT
+  taxAmount: number;
+  taxEnabled?: boolean; // VAT toggle (defaults to true for 16% VAT)
+  discountType?: 'percentage' | 'fixed'; // '%' or fixed amount
+  discountValue?: number; // e.g. 10 for 10% or 5000 for KSh 5,000
+  othersFee: number;
+  othersEnabled?: boolean; // Toggle to include or remove "Others" fee
+  othersLabel?: string; // Optional label e.g. "Others", "Shipping & Handling"
+}
+
 export interface QuotationData {
   company: {
     name: string;
@@ -28,19 +40,14 @@ export interface QuotationData {
     projectDescription: string;
   };
   items: QuoteItem[];
-  pricing: {
-    currencySymbol: string;
-    taxRatePercent: number; // e.g. 6.67% or fixed amount
-    taxAmount: number;
-    othersFee: number;
-  };
+  pricing: QuotationPricing;
   terms: string;
   signature: {
     printedName: string;
     dateSigned: string;
     signatureDataUrl?: string;
   };
-  themeColor: string; // e.g. '#2e7d32' (Forest Green from image)
+  themeColor: string; // e.g. '#2e7d32' (Forest Green) or '#0284c7' (One Step Blue)
 }
 
 export const DEFAULT_QUOTATION: QuotationData = {
@@ -95,7 +102,12 @@ export const DEFAULT_QUOTATION: QuotationData = {
     currencySymbol: 'KSh',
     taxRatePercent: 16,
     taxAmount: 42880,
+    taxEnabled: true,
+    discountType: 'percentage',
+    discountValue: 0,
     othersFee: 0,
+    othersEnabled: false,
+    othersLabel: 'Others',
   },
   terms: 'Above quotation is an estimate of goods and services valid for 30 days. 16% Value-Added Tax (VAT) applies per KRA regulations. 50% deposit required upon confirmation.',
   signature: {

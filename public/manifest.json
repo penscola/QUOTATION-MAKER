@@ -1,0 +1,17 @@
+{
+  "name": "One Step Solution - Quotation Generator",
+  "short_name": "OneStep Quote",
+  "description": "Professional Kenyan Shillings (KSh) quotation maker with offline auto-save and PDF export.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#060e20",
+  "theme_color": "#0b1326",
+  "icons": [
+    {
+      "src": "/assets/aistudio/image_6276447f.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

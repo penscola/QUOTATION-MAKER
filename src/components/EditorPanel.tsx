@@ -14,19 +14,30 @@ import {
   Loader2, 
   CheckCircle2,
   Upload,
-  X
+  X,
+  Percent,
+  Tag,
+  ReceiptText,
+  FolderHeart,
+  BookmarkPlus,
+  ChevronRight
 } from 'lucide-react';
+import { calculateQuotationTotals } from '../utils/pricing';
 
 interface EditorPanelProps {
   data: QuotationData;
   onChange: (updated: QuotationData) => void;
   onResetToSample: () => void;
+  onOpenSavedQuotes?: () => void;
+  onSaveCurrentQuote?: () => void;
 }
 
 export const EditorPanel: React.FC<EditorPanelProps> = ({
   data,
   onChange,
   onResetToSample,
+  onOpenSavedQuotes,
+  onSaveCurrentQuote,
 }) => {
   const [activeTab, setActiveTab] = useState<'quick-write' | 'items' | 'details' | 'company'>('quick-write');
   const [freeformText, setFreeformText] = useState('');
@@ -236,6 +247,100 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
     });
   };
 
+  const totals = calculateQuotationTotals(data.items, data.pricing);
+
+  const handleDiscountTypeChange = (type: 'percentage' | 'fixed') => {
+    onChange({
+      ...data,
+      pricing: {
+        ...data.pricing,
+        discountType: type,
+      },
+    });
+  };
+
+  const handleDiscountValueChange = (val: number) => {
+    onChange({
+      ...data,
+      pricing: {
+        ...data.pricing,
+        discountValue: Math.max(0, val),
+      },
+    });
+  };
+
+  const handleToggleTax = () => {
+    const isCurrentlyEnabled = data.pricing.taxEnabled !== false;
+    onChange({
+      ...data,
+      pricing: {
+        ...data.pricing,
+        taxEnabled: !isCurrentlyEnabled,
+        taxRatePercent: 16,
+      },
+    });
+  };
+
+  const handleSetTaxEnabled = (enabled: boolean) => {
+    onChange({
+      ...data,
+      pricing: {
+        ...data.pricing,
+        taxEnabled: enabled,
+        taxRatePercent: 16,
+      },
+    });
+  };
+
+  const handleToggleOthers = () => {
+    const isCurrentlyActive = totals.isOthersEnabled && totals.othersFee > 0;
+    const nextEnabled = !isCurrentlyActive;
+    onChange({
+      ...data,
+      pricing: {
+        ...data.pricing,
+        othersEnabled: nextEnabled,
+        othersFee: nextEnabled ? (data.pricing.othersFee > 0 ? data.pricing.othersFee : 2500) : 0,
+        othersLabel: data.pricing.othersLabel || 'Others',
+      },
+    });
+  };
+
+  const handleRemoveOthers = () => {
+    onChange({
+      ...data,
+      pricing: {
+        ...data.pricing,
+        othersEnabled: false,
+        othersFee: 0,
+      },
+    });
+  };
+
+  const handleAddOthers = (defaultAmount = 2500) => {
+    onChange({
+      ...data,
+      pricing: {
+        ...data.pricing,
+        othersEnabled: true,
+        othersFee: data.pricing.othersFee > 0 ? data.pricing.othersFee : defaultAmount,
+        othersLabel: data.pricing.othersLabel || 'Others',
+      },
+    });
+  };
+
+  const handleRemoveBothVatAndOthers = () => {
+    onChange({
+      ...data,
+      pricing: {
+        ...data.pricing,
+        taxEnabled: false,
+        othersEnabled: false,
+        othersFee: 0,
+      },
+    });
+  };
+
   return (
     <div className="w-full lg:w-[420px] xl:w-[460px] shrink-0 bg-[#0f172a] border-r border-[#334155] flex flex-col h-full overflow-hidden text-slate-200 print:hidden">
       {/* Top Tabs */}
@@ -290,6 +395,35 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Saved Quotes Quick Access Sub-Bar */}
+      {(onOpenSavedQuotes || onSaveCurrentQuote) && (
+        <div className="px-3 py-1.5 bg-[#0a1224] border-b border-[#202d48] flex items-center justify-between text-[11px] shrink-0">
+          <button
+            onClick={onOpenSavedQuotes}
+            className="flex items-center gap-1.5 text-slate-300 hover:text-sky-300 transition-colors cursor-pointer group"
+            title="Browse previous quotations organized by client name and date"
+          >
+            <FolderHeart className="w-3.5 h-3.5 text-sky-400 group-hover:scale-110 transition-transform" />
+            <span className="font-medium">Saved Quotes</span>
+            <span className="text-[10px] text-slate-400 flex items-center gap-0.5">
+              <span>(Jump back)</span>
+              <ChevronRight className="w-3 h-3 text-sky-400" />
+            </span>
+          </button>
+
+          {onSaveCurrentQuote && (
+            <button
+              onClick={onSaveCurrentQuote}
+              className="px-2 py-0.5 rounded bg-[#162544] hover:bg-sky-600 text-sky-200 hover:text-white border border-sky-800/50 hover:border-sky-500 font-medium transition-all flex items-center gap-1 cursor-pointer"
+              title="Save current quotation to your IndexedDB library"
+            >
+              <BookmarkPlus className="w-3 h-3 text-sky-400 group-hover:text-white" />
+              <span>Save Draft</span>
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Tab Contents */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs">
@@ -507,35 +641,363 @@ Tax: ₱150."
               ))}
             </div>
 
-            {/* Taxes and Extra Fees */}
-            <div className="p-3.5 rounded-xl bg-[#1e293b] border border-[#334155] space-y-2.5 mt-4">
-              <span className="font-semibold text-white block">Taxes & Other Charges</span>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-[10px] text-slate-400 block mb-0.5">Value-Added Tax ({data.pricing.currencySymbol})</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={data.pricing.taxAmount}
-                    onChange={(e) => onChange({
-                      ...data,
-                      pricing: { ...data.pricing, taxAmount: parseFloat(e.target.value) || 0 },
-                    })}
-                    className="w-full bg-[#0b1326] border border-[#334155] rounded px-2.5 py-1.5 text-xs text-white font-mono focus:outline-none"
-                  />
+            {/* PRICING ADJUSTMENTS: DISCOUNT & 16% VAT TOGGLE */}
+            <div className="p-3.5 rounded-xl bg-[#1e293b] border border-[#334155] space-y-3.5 mt-4">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-white flex items-center gap-1.5 text-xs sm:text-sm">
+                  <ReceiptText className="w-4 h-4 text-sky-400" />
+                  <span>Discounts, Taxes & Totals</span>
+                </span>
+                <span className="text-[10px] text-sky-300 font-bold px-2 py-0.5 rounded bg-sky-950/60 border border-sky-800/80">
+                  {data.pricing.currencySymbol}
+                </span>
+              </div>
+
+              {/* 1. DISCOUNT INPUT SECTION (Percentage or Fixed Amount) */}
+              <div className="p-3 rounded-lg bg-[#0b1326] border border-[#334155] space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Tag className="w-3.5 h-3.5 text-emerald-400" />
+                    <label className="text-xs font-semibold text-slate-200">Quotation Discount</label>
+                  </div>
+                  {totals.discountAmount > 0 && (
+                    <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/70 border border-emerald-700/80 px-2 py-0.5 rounded font-mono">
+                      -{data.pricing.currencySymbol} {totals.discountAmount.toLocaleString()} saved
+                    </span>
+                  )}
                 </div>
+
+                {/* Percentage vs Fixed Deduction Mode Selector */}
+                <div className="flex items-center gap-1 bg-[#171f33] p-1 rounded-lg border border-[#334155]">
+                  <button
+                    type="button"
+                    onClick={() => handleDiscountTypeChange('percentage')}
+                    className={`flex-1 py-1.5 px-2 rounded-md text-[11px] font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      (data.pricing.discountType || 'percentage') === 'percentage'
+                        ? 'bg-[#0284c7] text-white shadow-xs'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <Percent className="w-3 h-3" />
+                    <span>Percentage (%)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDiscountTypeChange('fixed')}
+                    className={`flex-1 py-1.5 px-2 rounded-md text-[11px] font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      data.pricing.discountType === 'fixed'
+                        ? 'bg-[#0284c7] text-white shadow-xs'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <span>Fixed ({data.pricing.currencySymbol})</span>
+                  </button>
+                </div>
+
+                {/* Discount Input Field */}
                 <div>
-                  <label className="text-[10px] text-slate-400 block mb-0.5">Others ({data.pricing.currencySymbol})</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={data.pricing.othersFee}
-                    onChange={(e) => onChange({
-                      ...data,
-                      pricing: { ...data.pricing, othersFee: parseFloat(e.target.value) || 0 },
-                    })}
-                    className="w-full bg-[#0b1326] border border-[#334155] rounded px-2.5 py-1.5 text-xs text-white font-mono focus:outline-none"
-                  />
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min="0"
+                      max={(data.pricing.discountType || 'percentage') === 'percentage' ? 100 : totals.subtotal}
+                      step={(data.pricing.discountType || 'percentage') === 'percentage' ? 1 : 100}
+                      value={data.pricing.discountValue ?? 0}
+                      onChange={(e) => handleDiscountValueChange(parseFloat(e.target.value) || 0)}
+                      placeholder={(data.pricing.discountType || 'percentage') === 'percentage' ? 'e.g. 10' : 'e.g. 5000'}
+                      className="w-full bg-[#131b2e] border border-[#334155] rounded-lg px-3 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-sky-500 pr-14"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-sky-400">
+                      {(data.pricing.discountType || 'percentage') === 'percentage' ? '%' : data.pricing.currencySymbol}
+                    </span>
+                  </div>
+
+                  {/* Quick Preset Buttons for Percentage Discount */}
+                  {(data.pricing.discountType || 'percentage') === 'percentage' && (
+                    <div className="flex items-center gap-1.5 mt-2">
+                      <span className="text-[10px] text-slate-500 font-medium">Presets:</span>
+                      {[0, 5, 10, 15, 20].map((pct) => (
+                        <button
+                          key={pct}
+                          type="button"
+                          onClick={() => handleDiscountValueChange(pct)}
+                          className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors cursor-pointer ${
+                            (data.pricing.discountValue || 0) === pct
+                              ? 'bg-emerald-600 text-white font-bold shadow-xs'
+                              : 'bg-[#1e293b] text-slate-400 hover:text-white hover:bg-[#334155]'
+                          }`}
+                        >
+                          {pct === 0 ? 'None (0%)' : `${pct}%`}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 2. AUTOMATIC 16% VAT / TAX CONTROLS WITH EXPLICIT REMOVAL */}
+              <div className="p-3 rounded-lg bg-[#0b1326] border border-[#334155] space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-semibold text-slate-200">
+                        Value-Added Tax (16% VAT)
+                      </span>
+                      {data.pricing.taxEnabled !== false ? (
+                        <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/80 border border-emerald-700/80 px-1.5 py-0.2 rounded">
+                          Included (16%)
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-bold text-rose-400 bg-rose-950/80 border border-rose-800/80 px-1.5 py-0.2 rounded">
+                          Removed / Exempt
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[10px] text-slate-400 block mt-0.5">
+                      Standard Kenya Revenue Authority rate (16%)
+                    </span>
+                  </div>
+
+                  {/* Toggle Switch */}
+                  <button
+                    type="button"
+                    onClick={handleToggleTax}
+                    aria-pressed={data.pricing.taxEnabled !== false}
+                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                      data.pricing.taxEnabled !== false ? 'bg-emerald-600' : 'bg-slate-700'
+                    }`}
+                    title={data.pricing.taxEnabled !== false ? 'Click to remove 16% VAT' : 'Click to enable 16% VAT'}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                        data.pricing.taxEnabled !== false ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {data.pricing.taxEnabled !== false ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between bg-emerald-950/40 border border-emerald-800/80 rounded-md p-2 text-xs">
+                      <span className="text-emerald-300 font-medium text-[11px] flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                        16% VAT applied to taxable subtotal
+                      </span>
+                      <span className="font-mono font-bold text-emerald-200">
+                        +{data.pricing.currencySymbol} {totals.taxAmount.toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => handleSetTaxEnabled(false)}
+                        className="text-[11px] text-rose-400 hover:text-rose-300 flex items-center gap-1 transition-colors cursor-pointer py-0.5"
+                      >
+                        <Trash2 className="w-3 h-3 text-rose-400" />
+                        <span>Remove VAT from quote</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between bg-slate-900/60 border border-slate-800 rounded-md p-2 text-xs">
+                      <span className="text-slate-400 text-[11px]">
+                        VAT Removed (Tax-Exempt / 0% VAT)
+                      </span>
+                      <span className="font-mono text-slate-500 font-semibold">
+                        {data.pricing.currencySymbol} 0
+                      </span>
+                    </div>
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => handleSetTaxEnabled(true)}
+                        className="text-[11px] text-emerald-400 hover:text-emerald-300 flex items-center gap-1 transition-colors cursor-pointer font-medium py-0.5"
+                      >
+                        <Plus className="w-3 h-3 text-emerald-400" />
+                        <span>Add 16% VAT back</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 3. OTHER CHARGES / DELIVERY / HANDLING WITH EXPLICIT REMOVAL */}
+              <div className="p-3 rounded-lg bg-[#0b1326] border border-[#334155] space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-semibold text-slate-200">
+                        Other Charges / Handling
+                      </span>
+                      {totals.isOthersEnabled && totals.othersFee > 0 ? (
+                        <span className="text-[10px] font-bold text-sky-400 bg-sky-950/80 border border-sky-800/80 px-1.5 py-0.2 rounded">
+                          Included
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-bold text-slate-400 bg-slate-800/80 border border-slate-700 px-1.5 py-0.2 rounded">
+                          Removed / None
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[10px] text-slate-400 block mt-0.5">
+                      Shipping, transport, labor, or incidental fees
+                    </span>
+                  </div>
+
+                  {/* Toggle Switch */}
+                  <button
+                    type="button"
+                    onClick={handleToggleOthers}
+                    aria-pressed={totals.isOthersEnabled && totals.othersFee > 0}
+                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                      totals.isOthersEnabled && totals.othersFee > 0 ? 'bg-sky-600' : 'bg-slate-700'
+                    }`}
+                    title={totals.isOthersEnabled && totals.othersFee > 0 ? 'Click to remove other charges' : 'Click to enable other charges'}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                        totals.isOthersEnabled && totals.othersFee > 0 ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {totals.isOthersEnabled && totals.othersFee > 0 ? (
+                  <div className="space-y-2.5">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] text-slate-400 block mb-1">
+                          Charge Label
+                        </label>
+                        <input
+                          type="text"
+                          value={data.pricing.othersLabel || 'Others'}
+                          onChange={(e) => onChange({
+                            ...data,
+                            pricing: { ...data.pricing, othersLabel: e.target.value }
+                          })}
+                          placeholder="e.g. Delivery & Handling"
+                          className="w-full bg-[#131b2e] border border-[#334155] rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-sky-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-slate-400 block mb-1">
+                          Amount ({data.pricing.currencySymbol})
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={data.pricing.othersFee}
+                          onChange={(e) => onChange({
+                            ...data,
+                            pricing: { 
+                              ...data.pricing, 
+                              othersFee: parseFloat(e.target.value) || 0,
+                              othersEnabled: true,
+                            },
+                          })}
+                          placeholder="e.g. 2500"
+                          className="w-full bg-[#131b2e] border border-[#334155] rounded px-2.5 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-sky-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1 border-t border-[#1e293b]">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] text-slate-500">Presets:</span>
+                        {[1500, 2500, 5000].map((amt) => (
+                          <button
+                            key={amt}
+                            type="button"
+                            onClick={() => onChange({
+                              ...data,
+                              pricing: { ...data.pricing, othersFee: amt, othersEnabled: true }
+                            })}
+                            className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono transition-colors"
+                          >
+                            +{amt}
+                          </button>
+                        ))}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleRemoveOthers}
+                        className="text-[11px] text-rose-400 hover:text-rose-300 flex items-center gap-1 transition-colors cursor-pointer py-0.5"
+                      >
+                        <Trash2 className="w-3 h-3 text-rose-400" />
+                        <span>Remove charge</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between bg-slate-900/60 border border-slate-800 rounded-md p-2 text-xs">
+                      <span className="text-slate-400 text-[11px]">
+                        No other charges added (Excluded from quotation)
+                      </span>
+                      <span className="font-mono text-slate-500 font-semibold">
+                        {data.pricing.currencySymbol} 0
+                      </span>
+                    </div>
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => handleAddOthers(2500)}
+                        className="text-[11px] text-sky-400 hover:text-sky-300 flex items-center gap-1 transition-colors cursor-pointer font-medium py-0.5"
+                      >
+                        <Plus className="w-3 h-3 text-sky-400" />
+                        <span>Add other / delivery charges</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Quick Remove Both Button if any charge is active */}
+              {(data.pricing.taxEnabled !== false || (totals.isOthersEnabled && totals.othersFee > 0)) && (
+                <button
+                  type="button"
+                  onClick={handleRemoveBothVatAndOthers}
+                  className="w-full py-1.5 px-3 rounded-lg bg-rose-950/30 hover:bg-rose-950/60 border border-rose-900/50 hover:border-rose-700/80 text-rose-300 text-[11px] font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <Trash2 className="w-3 h-3 text-rose-400" />
+                  <span>Remove Both VAT & Other Charges</span>
+                </button>
+              )}
+
+              {/* 4. LIVE SUMMARY BREAKDOWN */}
+              <div className="p-2.5 rounded-lg bg-[#0b1326] border border-[#334155] text-xs space-y-1.5 font-mono">
+                <div className="flex justify-between text-slate-400 text-[11px]">
+                  <span>Items Subtotal:</span>
+                  <span>{data.pricing.currencySymbol} {totals.subtotal.toLocaleString()}</span>
+                </div>
+                {totals.discountAmount > 0 && (
+                  <div className="flex justify-between text-emerald-400 text-[11px]">
+                    <span>Discount ({totals.discountLabel}):</span>
+                    <span>-{data.pricing.currencySymbol} {totals.discountAmount.toLocaleString()}</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-slate-400 text-[11px]">
+                  <span>Net Taxable:</span>
+                  <span>{data.pricing.currencySymbol} {totals.taxableSubtotal.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between text-slate-400 text-[11px]">
+                  <span>VAT ({totals.taxLabel}):</span>
+                  <span className={totals.isTaxEnabled ? 'text-slate-200' : 'text-slate-500'}>
+                    {totals.isTaxEnabled ? `+${data.pricing.currencySymbol} ${totals.taxAmount.toLocaleString()}` : 'Removed (0)'}
+                  </span>
+                </div>
+                <div className="flex justify-between text-slate-400 text-[11px]">
+                  <span>{totals.othersLabel || 'Others'}:</span>
+                  <span className={totals.isOthersEnabled && totals.othersFee > 0 ? 'text-slate-200' : 'text-slate-500'}>
+                    {totals.isOthersEnabled && totals.othersFee > 0 ? `+${data.pricing.currencySymbol} ${totals.othersFee.toLocaleString()}` : 'Removed (0)'}
+                  </span>
+                </div>
+                <div className="pt-1.5 border-t border-[#334155] flex justify-between font-bold text-white text-sm">
+                  <span className="font-sans">Grand Total:</span>
+                  <span className="text-sky-400">{data.pricing.currencySymbol} {totals.grandTotal.toLocaleString()}</span>
                 </div>
               </div>
             </div>
