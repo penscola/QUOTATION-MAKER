@@ -80,15 +80,17 @@ export const QuotationDocument: React.FC<QuotationDocumentProps> = ({
   const [isDrawing, setIsDrawing] = useState(false);
 
   // Unified pricing totals calculation (including discount & 16% VAT toggle)
-  const totals = calculateQuotationTotals(data.items, data.pricing);
+  const itemsList = Array.isArray(data?.items) ? data.items : [];
+  const totals = calculateQuotationTotals(itemsList, data?.pricing);
 
-  const currency = data.pricing.currencySymbol || 'KSh';
+  const currency = data?.pricing?.currencySymbol || 'KSh';
   const currDisplay = currency.length > 1 ? `${currency} ` : currency;
-  const theme = data.themeColor || '#2e7d32';
+  const theme = data?.themeColor || '#0284c7';
 
-  // Format numbers nicely
-  const formatNum = (num: number) => {
-    return num.toLocaleString('en-US', {
+  // Format numbers nicely with full null/NaN safety
+  const formatNum = (num: number | undefined | null) => {
+    const val = typeof num === 'number' && !isNaN(num) ? num : 0;
+    return val.toLocaleString('en-US', {
       minimumFractionDigits: 0,
       maximumFractionDigits: 2,
     });
@@ -444,8 +446,8 @@ export const QuotationDocument: React.FC<QuotationDocumentProps> = ({
               </tr>
             </thead>
             <tbody>
-              {data.items.map((item, index) => {
-                const lineTotal = item.quantity * item.price;
+              {(data?.items || []).map((item, index) => {
+                const lineTotal = (Number(item?.quantity) || 1) * (Number(item?.price) || 0);
                 const isEven = index % 2 === 0;
 
                 return (

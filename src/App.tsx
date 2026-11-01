@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { QuotationData, DEFAULT_QUOTATION } from './types/quote';
+import { QuotationData, DEFAULT_QUOTATION, sanitizeQuotation } from './types/quote';
 import { QuotationDocument } from './components/QuotationDocument';
 import { EditorPanel } from './components/EditorPanel';
 import { CompanyFooter } from './components/CompanyFooter';
@@ -37,24 +37,10 @@ export default function App() {
       const saved = localStorage.getItem('quotecraft_current_quote');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed.pricing?.currencySymbol === '₱') {
-          parsed.pricing.currencySymbol = 'KSh';
-        }
-        if (parsed.pricing) {
-          if (parsed.pricing.taxEnabled === undefined) parsed.pricing.taxEnabled = true;
-          if (parsed.pricing.taxRatePercent === undefined) parsed.pricing.taxRatePercent = 16;
-          if (parsed.pricing.discountType === undefined) parsed.pricing.discountType = 'percentage';
-          if (parsed.pricing.discountValue === undefined) parsed.pricing.discountValue = 0;
-          if (parsed.pricing.othersEnabled === undefined) parsed.pricing.othersEnabled = (parsed.pricing.othersFee || 0) > 0;
-          if (!parsed.pricing.othersLabel) parsed.pricing.othersLabel = 'Others';
-        }
-        if (!parsed.company?.logoUrl || parsed.company.name?.includes('BUHAY') || parsed.company.phone?.includes('700 123 456') || parsed.company.phone?.includes('0123 456')) {
-          parsed.company = DEFAULT_QUOTATION.company;
-        }
-        return parsed;
+        return sanitizeQuotation(parsed);
       }
     } catch (e) {
-      // ignore
+      console.warn('LocalStorage parse warning, using default:', e);
     }
     return DEFAULT_QUOTATION;
   });
@@ -94,22 +80,8 @@ export default function App() {
       try {
         const idbData = await loadQuotationFromIndexedDB();
         if (idbData && idbData.quotation && isMounted) {
-          const parsed = idbData.quotation;
-          if (parsed.pricing?.currencySymbol === '₱') {
-            parsed.pricing.currencySymbol = 'KSh';
-          }
-          if (parsed.pricing) {
-            if (parsed.pricing.taxEnabled === undefined) parsed.pricing.taxEnabled = true;
-            if (parsed.pricing.taxRatePercent === undefined) parsed.pricing.taxRatePercent = 16;
-            if (parsed.pricing.discountType === undefined) parsed.pricing.discountType = 'percentage';
-            if (parsed.pricing.discountValue === undefined) parsed.pricing.discountValue = 0;
-            if (parsed.pricing.othersEnabled === undefined) parsed.pricing.othersEnabled = (parsed.pricing.othersFee || 0) > 0;
-            if (!parsed.pricing.othersLabel) parsed.pricing.othersLabel = 'Others';
-          }
-          if (!parsed.company?.logoUrl || parsed.company.name?.includes('BUHAY') || parsed.company.phone?.includes('700 123 456') || parsed.company.phone?.includes('0123 456')) {
-            parsed.company = DEFAULT_QUOTATION.company;
-          }
-          setQuotation(parsed);
+          const sanitized = sanitizeQuotation(idbData.quotation);
+          setQuotation(sanitized);
           setLastSavedTime(new Date(idbData.timestamp));
         }
         await refreshSavedQuotesCount();
@@ -241,8 +213,9 @@ export default function App() {
   };
 
   const handleRestoreFromSnapshot = (restored: QuotationData) => {
-    handleUpdateQuotation(restored);
-    setRestoredBanner(`Loaded Quote #${restored.details.quoteNumber || 'Draft'} for ${restored.client.name || 'Client'}`);
+    const sanitized = sanitizeQuotation(restored);
+    handleUpdateQuotation(sanitized);
+    setRestoredBanner(`Loaded Quote #${sanitized.details?.quoteNumber || 'Draft'} for ${sanitized.client?.name || 'Client'}`);
     setTimeout(() => setRestoredBanner(null), 4000);
   };
 

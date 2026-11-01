@@ -22,16 +22,29 @@ export interface PricingBreakdown {
  * automatic Kenyan 16% VAT toggle calculations, and optional Other/incidental charges.
  */
 export function calculateQuotationTotals(
-  items: QuoteItem[],
-  pricing: QuotationPricing
+  items?: QuoteItem[] | null,
+  pricing?: QuotationPricing | null
 ): PricingBreakdown {
-  const subtotal = items.reduce(
-    (sum, it) => sum + (Number(it.quantity) || 0) * (Number(it.price) || 0),
+  const safeItems = Array.isArray(items) ? items : [];
+  const safePricing = pricing || {
+    currencySymbol: 'KSh',
+    taxRatePercent: 16,
+    taxAmount: 0,
+    taxEnabled: true,
+    discountType: 'percentage',
+    discountValue: 0,
+    othersFee: 0,
+    othersEnabled: false,
+    othersLabel: 'Others',
+  };
+
+  const subtotal = safeItems.reduce(
+    (sum, it) => sum + (Number(it?.quantity) || 0) * (Number(it?.price) || 0),
     0
   );
 
-  const discountType = pricing.discountType || 'percentage';
-  const discountValue = Math.max(0, Number(pricing.discountValue) || 0);
+  const discountType = safePricing.discountType === 'fixed' ? 'fixed' : 'percentage';
+  const discountValue = Math.max(0, Number(safePricing.discountValue) || 0);
 
   let discountAmount = 0;
   if (discountValue > 0) {
@@ -45,8 +58,8 @@ export function calculateQuotationTotals(
   const taxableSubtotal = Math.max(0, subtotal - discountAmount);
 
   // 1. VAT / Tax Removal or Toggle
-  const isTaxEnabled = pricing.taxEnabled !== false;
-  const taxRatePercent = pricing.taxRatePercent !== undefined ? pricing.taxRatePercent : 16;
+  const isTaxEnabled = safePricing.taxEnabled !== false;
+  const taxRatePercent = typeof safePricing.taxRatePercent === 'number' ? safePricing.taxRatePercent : 16;
 
   let taxAmount = 0;
   if (isTaxEnabled) {
@@ -56,10 +69,10 @@ export function calculateQuotationTotals(
   }
 
   // 2. Others Fee Removal or Toggle
-  const rawOthersFee = Math.max(0, Number(pricing.othersFee) || 0);
-  const isOthersEnabled = pricing.othersEnabled !== false && (rawOthersFee > 0 || pricing.othersEnabled === true);
+  const rawOthersFee = Math.max(0, Number(safePricing.othersFee) || 0);
+  const isOthersEnabled = safePricing.othersEnabled !== false && (rawOthersFee > 0 || safePricing.othersEnabled === true);
   const othersFee = isOthersEnabled ? rawOthersFee : 0;
-  const othersLabel = pricing.othersLabel || 'Others';
+  const othersLabel = safePricing.othersLabel || 'Others';
 
   const grandTotal = Math.round((taxableSubtotal + taxAmount + othersFee) * 100) / 100;
 

@@ -247,7 +247,7 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
     });
   };
 
-  const totals = calculateQuotationTotals(data.items, data.pricing);
+  const totals = calculateQuotationTotals(data?.items, data?.pricing);
 
   const handleDiscountTypeChange = (type: 'percentage' | 'fixed') => {
     onChange({
@@ -367,7 +367,7 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
             }`}
           >
             <FileText className="w-3.5 h-3.5" />
-            <span>Line Items ({data.items.length})</span>
+            <span>Line Items ({data?.items?.length || 0})</span>
           </button>
 
           <button
@@ -585,7 +585,7 @@ Tax: ₱150."
             </div>
 
             <div className="space-y-2.5">
-              {data.items.map((item, index) => (
+              {(data?.items || []).map((item, index) => (
                 <div
                   key={item.id}
                   className="p-3 rounded-xl bg-[#1e293b] border border-[#334155] space-y-2"

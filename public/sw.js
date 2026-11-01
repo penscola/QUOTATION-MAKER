@@ -1,6 +1,6 @@
-const CACHE_NAME = 'onestep-solution-quotation-v1';
+const CACHE_NAME = 'onestep-solution-quotation-v2';
 
-// Static resources to cache immediately on service worker install
+// Static resources to cache safely
 const PRECACHE_URLS = [
   '/',
   '/index.html',
@@ -10,9 +10,7 @@ const PRECACHE_URLS = [
 ];
 
 self.addEventListener('install', (event) => {
-  // Activate updated service worker immediately without waiting for existing tabs to close
   self.skipWaiting();
-
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(PRECACHE_URLS).catch((err) => {
@@ -23,11 +21,9 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('activate', (event) => {
-  // Take control of all open clients immediately
   event.waitUntil(
     Promise.all([
       self.clients.claim(),
-      // Clean up old caches
       caches.keys().then((cacheNames) => {
         return Promise.all(
           cacheNames.map((name) => {
@@ -44,12 +40,29 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const request = event.request;
 
-  // Only handle GET requests and skip browser extensions or chrome-extension URLs
+  // Only handle GET requests and skip browser extensions
   if (request.method !== 'GET' || !request.url.startsWith('http')) {
     return;
   }
 
-  // Handle navigation requests (HTML page): Network first, falling back to cached index.html
+  const url = new URL(request.url);
+
+  // CRITICAL: NEVER intercept Vite development modules, HMR, internal scripts, or TypeScript files
+  if (
+    url.pathname.startsWith('/src/') ||
+    url.pathname.startsWith('/@') ||
+    url.pathname.includes('node_modules') ||
+    url.pathname.endsWith('.ts') ||
+    url.pathname.endsWith('.tsx') ||
+    url.pathname.endsWith('.css') ||
+    request.headers.get('Upgrade') === 'websocket' ||
+    url.search.includes('import') ||
+    url.search.includes('v=')
+  ) {
+    return; // Pass through to browser native network
+  }
+
+  // Handle HTML navigation requests (Page load): Network first, falling back to cache
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request)
@@ -69,7 +82,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Handle static assets (scripts, styles, images, fonts): Stale-While-Revalidate
+  // Handle static assets (images, icons, fonts)
   event.respondWith(
     caches.match(request).then((cachedResponse) => {
       const fetchPromise = fetch(request)
@@ -80,12 +93,10 @@ self.addEventListener('fetch', (event) => {
           }
           return networkResponse;
         })
-        .catch(() => {
-          // Offline network error handled gracefully
-          return null;
-        });
+        .catch(() => null);
 
-      return cachedResponse || fetchPromise.then((res) => res || caches.match('/'));
+      // IMPORTANT: Never return HTML index fallback for static asset requests!
+      return cachedResponse || fetchPromise.then((res) => res || new Response('', { status: 404, statusText: 'Not Found' }));
     })
   );
 });

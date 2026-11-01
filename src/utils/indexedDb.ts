@@ -1,4 +1,4 @@
-import { QuotationData } from '../types/quote';
+import { QuotationData, sanitizeQuotation } from '../types/quote';
 import { calculateQuotationTotals } from './pricing';
 
 const DB_NAME = 'OneStepSolution_QuotationDB';
@@ -219,7 +219,7 @@ export async function loadQuotationFromIndexedDB(): Promise<{
       req.onsuccess = () => {
         if (req.result && req.result.data) {
           resolve({
-            quotation: req.result.data,
+            quotation: sanitizeQuotation(req.result.data),
             timestamp: req.result.timestamp || Date.now(),
           });
         } else {
@@ -242,7 +242,7 @@ export async function loadQuotationFromIndexedDB(): Promise<{
     const rawTime = localStorage.getItem(LOCAL_STORAGE_KEY + '_time');
     if (raw) {
       localResult = {
-        quotation: JSON.parse(raw),
+        quotation: sanitizeQuotation(JSON.parse(raw)),
         timestamp: rawTime ? parseInt(rawTime, 10) : 0,
       };
     }

@@ -116,3 +116,99 @@ export const DEFAULT_QUOTATION: QuotationData = {
   },
   themeColor: '#0284c7', // Matching One Step Solution brand blue
 };
+
+export function sanitizeQuotation(raw: any): QuotationData {
+  if (!raw || typeof raw !== 'object') {
+    return JSON.parse(JSON.stringify(DEFAULT_QUOTATION));
+  }
+
+  const base: QuotationData = JSON.parse(JSON.stringify(DEFAULT_QUOTATION));
+
+  const company = {
+    name: typeof raw.company?.name === 'string' && raw.company.name.trim() ? raw.company.name : base.company.name,
+    tagline: typeof raw.company?.tagline === 'string' ? raw.company.tagline : base.company.tagline,
+    address: typeof raw.company?.address === 'string' ? raw.company.address : base.company.address,
+    phone: typeof raw.company?.phone === 'string' ? raw.company.phone : base.company.phone,
+    website: typeof raw.company?.website === 'string' ? raw.company.website : base.company.website,
+    logoUrl: typeof raw.company?.logoUrl === 'string' ? raw.company.logoUrl : base.company.logoUrl,
+  };
+
+  if (
+    !company.logoUrl ||
+    company.name?.includes('BUHAY') ||
+    company.phone?.includes('700 123 456') ||
+    company.phone?.includes('0123 456')
+  ) {
+    company.name = base.company.name;
+    company.tagline = base.company.tagline;
+    company.address = base.company.address;
+    company.phone = base.company.phone;
+    company.website = base.company.website;
+    company.logoUrl = base.company.logoUrl;
+  }
+
+  const client = {
+    name: typeof raw.client?.name === 'string' ? raw.client.name : base.client.name,
+    company: typeof raw.client?.company === 'string' ? raw.client.company : base.client.company,
+    address: typeof raw.client?.address === 'string' ? raw.client.address : base.client.address,
+    phone: typeof raw.client?.phone === 'string' ? raw.client.phone : base.client.phone,
+    customerId: typeof raw.client?.customerId === 'string' ? raw.client.customerId : base.client.customerId,
+  };
+
+  const details = {
+    quoteNumber: typeof raw.details?.quoteNumber === 'string' ? raw.details.quoteNumber : base.details.quoteNumber,
+    date: typeof raw.details?.date === 'string' ? raw.details.date : base.details.date,
+    validUntil: typeof raw.details?.validUntil === 'string' ? raw.details.validUntil : base.details.validUntil,
+    projectDescription: typeof raw.details?.projectDescription === 'string' ? raw.details.projectDescription : base.details.projectDescription,
+  };
+
+  let items: QuoteItem[] = [];
+  if (Array.isArray(raw.items) && raw.items.length > 0) {
+    items = raw.items.map((it: any, idx: number) => ({
+      id: typeof it?.id === 'string' && it.id.trim() ? it.id : `item-${idx}-${Date.now()}`,
+      description: typeof it?.description === 'string' ? it.description : 'Item or service description',
+      quantity: Number(it?.quantity) > 0 ? Number(it.quantity) : 1,
+      price: Number(it?.price) >= 0 ? Number(it.price) : 0,
+    }));
+  } else {
+    items = base.items;
+  }
+
+  const rawPricing = raw.pricing || {};
+  let currencySymbol = rawPricing.currencySymbol || 'KSh';
+  if (currencySymbol === '₱') {
+    currencySymbol = 'KSh';
+  }
+
+  const pricing: QuotationPricing = {
+    currencySymbol,
+    taxRatePercent: typeof rawPricing.taxRatePercent === 'number' ? rawPricing.taxRatePercent : 16,
+    taxAmount: Number(rawPricing.taxAmount) || 0,
+    taxEnabled: rawPricing.taxEnabled !== false,
+    discountType: rawPricing.discountType === 'fixed' ? 'fixed' : 'percentage',
+    discountValue: Math.max(0, Number(rawPricing.discountValue) || 0),
+    othersFee: Math.max(0, Number(rawPricing.othersFee) || 0),
+    othersEnabled: rawPricing.othersEnabled !== undefined ? Boolean(rawPricing.othersEnabled) : (Number(rawPricing.othersFee) || 0) > 0,
+    othersLabel: typeof rawPricing.othersLabel === 'string' && rawPricing.othersLabel.trim() ? rawPricing.othersLabel : 'Others',
+  };
+
+  const signature = {
+    printedName: typeof raw.signature?.printedName === 'string' ? raw.signature.printedName : (client.name || base.signature.printedName),
+    dateSigned: typeof raw.signature?.dateSigned === 'string' ? raw.signature.dateSigned : details.date,
+    signatureDataUrl: typeof raw.signature?.signatureDataUrl === 'string' ? raw.signature.signatureDataUrl : undefined,
+  };
+
+  const terms = typeof raw.terms === 'string' && raw.terms.trim() ? raw.terms : base.terms;
+  const themeColor = typeof raw.themeColor === 'string' && raw.themeColor.startsWith('#') ? raw.themeColor : base.themeColor;
+
+  return {
+    company,
+    client,
+    details,
+    items,
+    pricing,
+    terms,
+    signature,
+    themeColor,
+  };
+}
