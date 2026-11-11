@@ -20,9 +20,16 @@ import {
   ReceiptText,
   FolderHeart,
   BookmarkPlus,
-  ChevronRight
+  ChevronRight,
+  QrCode,
+  ExternalLink,
+  Copy,
+  Check,
+  ShieldCheck
 } from 'lucide-react';
 import { calculateQuotationTotals } from '../utils/pricing';
+import { getVerificationUrl } from '../utils/qrHelper';
+import { QRCodeSVG } from 'qrcode.react';
 
 interface EditorPanelProps {
   data: QuotationData;
@@ -43,6 +50,16 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
   const [freeformText, setFreeformText] = useState('');
   const [isParsing, setIsParsing] = useState(false);
   const [parseSuccessMessage, setParseSuccessMessage] = useState<string | null>(null);
+  const [copiedPanelLink, setCopiedPanelLink] = useState(false);
+
+  const verificationUrl = getVerificationUrl(data);
+  const isQrEnabled = data.qrCode?.enabled !== false;
+
+  const handleCopyPanelLink = () => {
+    navigator.clipboard.writeText(verificationUrl);
+    setCopiedPanelLink(true);
+    setTimeout(() => setCopiedPanelLink(false), 2000);
+  };
 
   const themeColors = [
     { label: 'One Step Blue (Brand)', value: '#0284c7' },
@@ -1104,6 +1121,197 @@ Tax: ₱150."
                   className="w-full bg-[#0b1326] border border-[#334155] rounded px-2.5 py-1.5 text-xs text-white focus:outline-none"
                 />
               </div>
+            </div>
+
+            {/* QR CODE & DIGITAL VERIFICATION CONTROLS */}
+            <div className="p-3.5 rounded-xl bg-[#1e293b] border border-[#334155] space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 rounded-lg bg-sky-950/80 border border-sky-800 text-sky-400">
+                    <QrCode className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="font-semibold text-white block text-xs">
+                      Digital Verification QR Code
+                    </span>
+                    <span className="text-[10px] text-slate-400">
+                      Scannable link for recipients to verify digital copy
+                    </span>
+                  </div>
+                </div>
+
+                {/* Toggle switch */}
+                <button
+                  type="button"
+                  onClick={() => onChange({
+                    ...data,
+                    qrCode: {
+                      ...data.qrCode,
+                      enabled: !isQrEnabled,
+                      label: data.qrCode?.label || 'Scan to Verify Quote',
+                      caption: data.qrCode?.caption || 'Official digital document & online view',
+                    }
+                  })}
+                  aria-pressed={isQrEnabled}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    isQrEnabled ? 'bg-sky-600' : 'bg-slate-700'
+                  }`}
+                  title={isQrEnabled ? 'Click to disable QR code' : 'Click to enable QR code'}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                      isQrEnabled ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {isQrEnabled ? (
+                <div className="space-y-3 pt-1 border-t border-[#334155]">
+                  {/* Live Mini Preview & Status */}
+                  <div className="p-2.5 rounded-lg bg-[#0b1326] border border-[#334155] flex items-center gap-3">
+                    <div className="p-1.5 bg-white rounded-md shrink-0 shadow-sm">
+                      <QRCodeSVG
+                        value={verificationUrl}
+                        size={52}
+                        level="M"
+                        marginSize={0}
+                        fgColor="#0f172a"
+                        bgColor="#ffffff"
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                        <span className="text-[11px] font-bold text-white">Active Scannable QR</span>
+                        <span className="text-[9px] font-mono text-sky-400 bg-sky-950 px-1.5 py-0.2 rounded border border-sky-800">
+                          Level M
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-400 truncate">
+                        Links to: {verificationUrl}
+                      </p>
+                      <div className="flex items-center gap-2 pt-0.5">
+                        <button
+                          type="button"
+                          onClick={handleCopyPanelLink}
+                          className="text-[10px] text-sky-300 hover:text-white flex items-center gap-1 font-medium cursor-pointer"
+                        >
+                          {copiedPanelLink ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                          <span>{copiedPanelLink ? 'Copied' : 'Copy link'}</span>
+                        </button>
+                        <span className="text-slate-600">•</span>
+                        <a
+                          href={verificationUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[10px] text-slate-400 hover:text-sky-300 flex items-center gap-1 hover:underline"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          <span>Test open</span>
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Target URL field */}
+                  <div>
+                    <div className="flex items-center justify-between mb-0.5">
+                      <label className="text-[10px] text-slate-400 font-medium">Target Link URL</label>
+                      <span className="text-[9px] text-slate-500">Auto-generated if empty</span>
+                    </div>
+                    <input
+                      type="url"
+                      value={data.qrCode?.linkUrl || ''}
+                      onChange={(e) => onChange({
+                        ...data,
+                        qrCode: {
+                          ...data.qrCode,
+                          enabled: true,
+                          linkUrl: e.target.value,
+                        }
+                      })}
+                      placeholder={verificationUrl}
+                      className="w-full bg-[#0b1326] border border-[#334155] rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-sky-500 font-mono"
+                    />
+
+                    {/* Presets */}
+                    <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                      <span className="text-[10px] text-slate-500">Presets:</span>
+                      <button
+                        type="button"
+                        onClick={() => onChange({
+                          ...data,
+                          qrCode: { ...data.qrCode, enabled: true, linkUrl: '' }
+                        })}
+                        className="text-[10px] px-2 py-0.5 rounded bg-[#0b1326] hover:bg-[#162340] text-sky-300 border border-[#334155] cursor-pointer"
+                      >
+                        Default Verification Link
+                      </button>
+                      {data.company.website && (
+                        <button
+                          type="button"
+                          onClick={() => onChange({
+                            ...data,
+                            qrCode: { 
+                              ...data.qrCode, 
+                              enabled: true, 
+                              linkUrl: data.company.website.startsWith('http') ? data.company.website : `https://${data.company.website}` 
+                            }
+                          })}
+                          className="text-[10px] px-2 py-0.5 rounded bg-[#0b1326] hover:bg-[#162340] text-slate-300 border border-[#334155] cursor-pointer"
+                        >
+                          Company Website
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Custom Label & Caption */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[10px] text-slate-400 block mb-0.5">QR Title</label>
+                      <input
+                        type="text"
+                        value={data.qrCode?.label || ''}
+                        onChange={(e) => onChange({
+                          ...data,
+                          qrCode: { ...data.qrCode, enabled: true, label: e.target.value }
+                        })}
+                        placeholder="Scan to Verify Quote"
+                        className="w-full bg-[#0b1326] border border-[#334155] rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-sky-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-slate-400 block mb-0.5">Caption</label>
+                      <input
+                        type="text"
+                        value={data.qrCode?.caption || ''}
+                        onChange={(e) => onChange({
+                          ...data,
+                          qrCode: { ...data.qrCode, enabled: true, caption: e.target.value }
+                        })}
+                        placeholder="Official digital document"
+                        className="w-full bg-[#0b1326] border border-[#334155] rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-sky-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-2.5 rounded-lg bg-slate-900/60 border border-slate-800 text-[11px] text-slate-400 flex items-center justify-between">
+                  <span>QR code is hidden from the quotation sheet and exported PDF.</span>
+                  <button
+                    type="button"
+                    onClick={() => onChange({
+                      ...data,
+                      qrCode: { ...data.qrCode, enabled: true }
+                    })}
+                    className="text-sky-400 hover:text-sky-300 font-semibold cursor-pointer"
+                  >
+                    Enable
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}

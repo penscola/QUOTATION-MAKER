@@ -397,6 +397,62 @@ export async function downloadQuotationPDF(
     curY += Math.max(termsLines.length * 3.8, 6) + 4;
   }
 
+  // 9b. Digital Verification QR Code Badge in PDF
+  if (quotation.qrCode?.enabled !== false) {
+    const qrCanvas = document.getElementById('quotation-qr-canvas') as HTMLCanvasElement | null;
+    let qrDataUrl: string | null = null;
+    if (qrCanvas) {
+      try {
+        qrDataUrl = qrCanvas.toDataURL('image/png');
+      } catch (e) {
+        console.warn('Could not extract QR canvas for PDF:', e);
+      }
+    }
+
+    if (qrDataUrl) {
+      try {
+        const qrBoxHeight = 16;
+        // Light grey background box
+        pdf.setFillColor(248, 250, 252);
+        pdf.setDrawColor(226, 232, 240);
+        pdf.setLineWidth(0.3);
+        pdf.roundedRect(margin, curY, contentWidth, qrBoxHeight, 1.5, 1.5, 'FD');
+
+        // Draw QR Image (13mm x 13mm)
+        pdf.addImage(qrDataUrl, 'PNG', margin + 2, curY + 1.5, 13, 13, undefined, 'FAST');
+
+        // Text beside QR Code
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(7.5);
+        pdf.setTextColor(themeR, themeG, themeB);
+        pdf.text(
+          `${(quotation.qrCode?.label || 'SCAN TO VERIFY QUOTE').toUpperCase()}  •  QUOTE #${quotation.details.quoteNumber || '1001'}`,
+          margin + 17,
+          curY + 4.5
+        );
+
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(6.5);
+        pdf.setTextColor(80, 80, 80);
+        pdf.text(
+          quotation.qrCode?.caption || 'Official digital quotation copy. Scan with phone camera to inspect validity or pay online.',
+          margin + 17,
+          curY + 8.5
+        );
+
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(6);
+        pdf.setTextColor(2, 132, 199);
+        const linkStr = quotation.qrCode?.linkUrl || `https://onestep.co.ke/verify?quote=${quotation.details.quoteNumber || '1001'}`;
+        pdf.text(linkStr.length > 80 ? linkStr.substring(0, 78) + '...' : linkStr, margin + 17, curY + 12.5);
+
+        curY += qrBoxHeight + 3;
+      } catch (e) {
+        console.warn('Could not embed QR in PDF:', e);
+      }
+    }
+  }
+
   // 10. Acceptance of Quote Confirmation & Signatures
   curY = Math.max(curY + 2, pageHeight - margin - 32);
 

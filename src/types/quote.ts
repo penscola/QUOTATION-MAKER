@@ -17,6 +17,13 @@ export interface QuotationPricing {
   othersLabel?: string; // Optional label e.g. "Others", "Shipping & Handling"
 }
 
+export interface QuotationQRCode {
+  enabled: boolean;
+  linkUrl?: string; // Custom link URL; defaults to canonical verification URL
+  label?: string; // e.g. "Scan to Verify Quote"
+  caption?: string; // e.g. "Official digital document & online view"
+}
+
 export interface QuotationData {
   company: {
     name: string;
@@ -47,6 +54,7 @@ export interface QuotationData {
     dateSigned: string;
     signatureDataUrl?: string;
   };
+  qrCode?: QuotationQRCode;
   themeColor: string; // e.g. '#2e7d32' (Forest Green) or '#0284c7' (One Step Blue)
 }
 
@@ -113,6 +121,12 @@ export const DEFAULT_QUOTATION: QuotationData = {
   signature: {
     printedName: 'Mary Anne Wanjiku',
     dateSigned: '2026-10-26',
+  },
+  qrCode: {
+    enabled: true,
+    linkUrl: '',
+    label: 'Scan to Verify Quote',
+    caption: 'Official digital document & online view',
   },
   themeColor: '#0284c7', // Matching One Step Solution brand blue
 };
@@ -198,6 +212,13 @@ export function sanitizeQuotation(raw: any): QuotationData {
     signatureDataUrl: typeof raw.signature?.signatureDataUrl === 'string' ? raw.signature.signatureDataUrl : undefined,
   };
 
+  const qrCode: QuotationQRCode = {
+    enabled: raw.qrCode?.enabled !== false,
+    linkUrl: typeof raw.qrCode?.linkUrl === 'string' ? raw.qrCode.linkUrl : '',
+    label: typeof raw.qrCode?.label === 'string' && raw.qrCode.label.trim() ? raw.qrCode.label : 'Scan to Verify Quote',
+    caption: typeof raw.qrCode?.caption === 'string' && raw.qrCode.caption.trim() ? raw.qrCode.caption : 'Official digital document & online view',
+  };
+
   const terms = typeof raw.terms === 'string' && raw.terms.trim() ? raw.terms : base.terms;
   const themeColor = typeof raw.themeColor === 'string' && raw.themeColor.startsWith('#') ? raw.themeColor : base.themeColor;
 
@@ -209,6 +230,7 @@ export function sanitizeQuotation(raw: any): QuotationData {
     pricing,
     terms,
     signature,
+    qrCode,
     themeColor,
   };
 }

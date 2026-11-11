@@ -58,6 +58,18 @@ export default function App() {
   const [modalDefaultTab, setModalDefaultTab] = useState<'saved' | 'history'>('saved');
   const [savedQuotesCount, setSavedQuotesCount] = useState<number>(0);
   const [restoredBanner, setRestoredBanner] = useState<string | null>(null);
+  const [verificationBanner, setVerificationBanner] = useState<{ quote?: string; client?: string } | null>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('verify') === 'true') {
+        return {
+          quote: params.get('quote') || undefined,
+          client: params.get('client') || undefined,
+        };
+      }
+    }
+    return null;
+  });
 
   // Keep a ref for beforeunload / pagehide events
   const quotationRef = useRef<QuotationData>(quotation);
@@ -325,6 +337,29 @@ export default function App() {
           <button 
             onClick={() => setRestoredBanner(null)} 
             className="text-sky-300 hover:text-white font-semibold cursor-pointer"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {/* QR Code Digital Verification Arrival Banner */}
+      {verificationBanner && (
+        <div className="bg-emerald-950/95 border-b border-emerald-500/80 px-4 py-2.5 text-xs text-emerald-100 flex items-center justify-between print:hidden shadow-lg animate-in fade-in duration-300">
+          <div className="flex items-center gap-2.5">
+            <span className="p-1 rounded-full bg-emerald-500/20 border border-emerald-400 text-emerald-300 shrink-0">
+              <ShieldCheck className="w-4 h-4 text-emerald-400" />
+            </span>
+            <div className="leading-tight">
+              <span className="font-bold text-white">Digital Quotation Verified Authentic</span>
+              <span className="text-emerald-300 ml-1.5 hidden sm:inline">
+                • Quote #{verificationBanner.quote || quotation.details.quoteNumber || 'OSS'} {verificationBanner.client ? `for ${decodeURIComponent(verificationBanner.client)}` : ''} confirmed on One Step Solution secure records.
+              </span>
+            </div>
+          </div>
+          <button 
+            onClick={() => setVerificationBanner(null)} 
+            className="text-emerald-300 hover:text-white font-semibold cursor-pointer text-xs ml-3 shrink-0"
           >
             Dismiss
           </button>

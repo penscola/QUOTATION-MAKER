@@ -1,7 +1,23 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { QuotationData, QuoteItem } from '../types/quote';
 import { calculateQuotationTotals } from '../utils/pricing';
-import { Trash2, Plus, PenTool, Check, RotateCcw, Upload, X, Image as ImageIcon } from 'lucide-react';
+import { getVerificationUrl } from '../utils/qrHelper';
+import { QRCodeSVG, QRCodeCanvas } from 'qrcode.react';
+import { 
+  Trash2, 
+  Plus, 
+  PenTool, 
+  Check, 
+  RotateCcw, 
+  Upload, 
+  X, 
+  Image as ImageIcon,
+  QrCode,
+  ExternalLink,
+  Copy,
+  ShieldCheck,
+  CheckCircle2
+} from 'lucide-react';
 
 interface AutoResizeTextareaProps {
   value: string;
@@ -93,6 +109,30 @@ export const QuotationDocument: React.FC<QuotationDocumentProps> = ({
     return val.toLocaleString('en-US', {
       minimumFractionDigits: 0,
       maximumFractionDigits: 2,
+    });
+  };
+
+  // QR Code & Verification states
+  const [copiedQr, setCopiedQr] = useState(false);
+  const qrVerificationUrl = getVerificationUrl(data);
+  const isQrEnabled = data.qrCode?.enabled !== false;
+
+  const handleCopyQrUrl = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(qrVerificationUrl);
+    setCopiedQr(true);
+    setTimeout(() => setCopiedQr(false), 2000);
+  };
+
+  const handleToggleQr = () => {
+    onChange({
+      ...data,
+      qrCode: {
+        ...data.qrCode,
+        enabled: !isQrEnabled,
+        label: data.qrCode?.label || 'Scan to Verify Quote',
+        caption: data.qrCode?.caption || 'Official digital document & online view',
+      },
     });
   };
 
@@ -695,6 +735,119 @@ export const QuotationDocument: React.FC<QuotationDocumentProps> = ({
             className="flex-1 bg-transparent hover:bg-slate-50 focus:bg-slate-50 focus:outline-none rounded p-1 resize-none text-slate-700 leading-relaxed"
           />
         </div>
+
+        {/* DIGITAL VERIFICATION QR CODE BLOCK */}
+        {isQrEnabled ? (
+          <div className="my-5 p-3.5 sm:p-4 rounded-xl border border-slate-200 bg-[#f8fafc] flex flex-col sm:flex-row items-center justify-between gap-4 relative group transition-all">
+            {/* Left: Scannable QR Code Badge */}
+            <div className="flex items-center gap-3.5 sm:gap-4 w-full sm:w-auto">
+              {/* QR Code Container with Scan Corner Accents */}
+              <div className="relative p-1.5 bg-white rounded-lg shadow-sm border border-slate-200 shrink-0">
+                <QRCodeSVG
+                  value={qrVerificationUrl}
+                  size={68}
+                  level="M"
+                  marginSize={1}
+                  fgColor="#0f172a"
+                  bgColor="#ffffff"
+                />
+                {/* Hidden canvas for high-resolution PDF extraction */}
+                <QRCodeCanvas
+                  id="quotation-qr-canvas"
+                  value={qrVerificationUrl}
+                  size={240}
+                  level="M"
+                  marginSize={1}
+                  fgColor="#0f172a"
+                  bgColor="#ffffff"
+                  className="hidden"
+                />
+              </div>
+
+              {/* Text Description */}
+              <div className="space-y-0.5 min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span 
+                    className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded tracking-wider flex items-center gap-1"
+                    style={{ 
+                      color: theme,
+                      backgroundColor: `${theme}15`,
+                      border: `1px solid ${theme}30`
+                    }}
+                  >
+                    <ShieldCheck className="w-3 h-3" />
+                    <span>Official Digital Quote</span>
+                  </span>
+                  <span className="text-[10px] font-mono text-slate-500 font-semibold">
+                    Quote #{data.details.quoteNumber || '1001'}
+                  </span>
+                </div>
+
+                <h4 className="text-xs sm:text-[13px] font-bold text-slate-900 tracking-tight leading-snug">
+                  {data.qrCode?.label || 'Scan to Verify Quote'}
+                </h4>
+
+                <p className="text-[11px] text-slate-500 leading-snug">
+                  {data.qrCode?.caption || 'Scan with any smartphone camera to inspect digital validity or download a fresh copy.'}
+                </p>
+
+                {/* Direct clickable link */}
+                <div className="pt-1 flex items-center gap-2 text-[10px]">
+                  <a
+                    href={qrVerificationUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-medium text-sky-700 hover:text-sky-900 flex items-center gap-1 truncate max-w-[280px] hover:underline"
+                    title="Click to open digital verification link"
+                  >
+                    <ExternalLink className="w-3 h-3 shrink-0" />
+                    <span className="truncate">{qrVerificationUrl}</span>
+                  </a>
+                  <button
+                    type="button"
+                    onClick={handleCopyQrUrl}
+                    className="p-1 text-slate-400 hover:text-slate-700 rounded transition-colors print:hidden shrink-0 cursor-pointer"
+                    title="Copy verification link"
+                  >
+                    {copiedQr ? (
+                      <Check className="w-3 h-3 text-emerald-600" />
+                    ) : (
+                      <Copy className="w-3 h-3" />
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Right: Interactive controls (hidden during print) */}
+            {interactive && (
+              <div className="flex items-center gap-1.5 self-end sm:self-center print:hidden opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                  type="button"
+                  onClick={handleToggleQr}
+                  title="Remove QR code from document"
+                  className="px-2 py-1 rounded text-[10px] text-rose-600 hover:bg-rose-50 border border-rose-200 transition-colors flex items-center gap-1 cursor-pointer"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  <span>Remove QR</span>
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
+          interactive ? (
+            <div className="my-3 flex justify-end print:hidden">
+              <button
+                type="button"
+                onClick={handleToggleQr}
+                className="text-[11px] text-slate-400 hover:text-sky-600 flex items-center gap-1 transition-colors cursor-pointer py-1 px-2 rounded hover:bg-slate-50"
+              >
+                <QrCode className="w-3.5 h-3.5 text-sky-500" />
+                <span>+ Add Digital Verification QR Code</span>
+              </button>
+            </div>
+          ) : null
+        )}
 
         {/* PLEASE CONFIRM YOUR ACCEPTANCE OF THIS QUOTE */}
         <div className="mt-8 pt-4">
